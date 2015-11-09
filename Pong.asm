@@ -41,7 +41,9 @@ p1Message db "PLAYER 1 WINS!!!$"
 p2Message db "PLAYER 2 WINS!!!$"
 player1Prompt db "Player 1 Press Enter$"
 Player2Prompt db "Player 2 Press Enter$"
+ScoreMessage db "SCOOOOOOOOOOOOORE!!!!!!!!!!$"
 readyPrompt db "GET READY!!!!!!!$"
+loopControl db 0
 p1Score db 0
 p2Score db 0
 p1Row db 12
@@ -202,18 +204,20 @@ GAME:
 	CALL moveBall
 	CALL CollisionCheck
 	CALL ScoreCheck
+	CALL DisplayP1Score
+	CALL DisplayP2Score
 	
-	cmp p1Score, 8
+	cmp p1Score, 3
 	je p1Win
-	cmp p2Score, 8
+	cmp p2Score, 3
 	je p2Win	
 	jmp gameLoop
 
 	p1Win:
-	mov si, offset p1Message
+	mov di, offset p1Message
 	jmp gameDone
 	p2Win:
-	mov si, offset p2Message
+	mov di, offset p2Message
 	jmp gameDone
 	
 	gameDone:
@@ -523,10 +527,12 @@ scoreCheck:
 	jmp NoScored
 	
 	P2Scored:
+	CALL SCORE
 	CALL BALLSET
 	inc P2Score
 	jmp NoScored
 	P1Scored:
+	CALL SCORE
 	CALL BALLSET
 	inc P1Score
 	
@@ -584,18 +590,170 @@ BALLSET:
 	pop ax
 ret
 
+DisplayP1Score:
+	push ax
+	push bx
+	push cx
+	push dx 
+	
+	MOV DX, 143H
+	MOV AL, 02H
+	OUT DX, AL
+
+	mov DX, 140H
+	mov AL, 0FFH
+	out DX, AL
+
+	MOV DX, 143H
+	MOV AL, 03H
+	OUT DX, AL
+	
+	
+	mov si, offset p1score
+	mov bx, [si]
+	MOV DX, 140H 
+	MOV AX, 000FFH
+	lightLoop1:
+		cmp bx, 0	
+		je out1
+		ROL AX, 1
+		dec bx
+	jmp lightLoop1
+	out1:
+	OUT DX, AL
+	
+
+	pop dx
+	pop cx
+	pop bx
+	pop ax
+ret
+
+DisplayP2Score:
+	push ax
+	push bx
+	push cx
+	push dx 
+	
+	MOV DX, 143H
+	MOV AL, 02H
+	OUT DX, AL
+
+	mov DX, 141H
+	mov AL, 0FFH
+	out DX, AL
+
+	MOV DX, 143H
+	MOV AL, 03H
+	OUT DX, AL
+	
+	
+	mov si, offset p2score
+	mov bx, [si]
+	MOV DX, 141H 
+	MOV AX, 000FFH
+	lightLoop2:
+		cmp bx, 0	
+		je out2
+		ROL AX, 1
+		dec bx
+	jmp lightLoop2
+	out2:
+	OUT DX, AL
+
+	pop dx
+	pop cx
+	pop bx
+	pop ax
+ret
+
+SCORE:
+	push ax
+	push bx
+	push cx
+	push dx 
+	
+	mov bx, 15
+	ENDLOOP:
+	CALL CLEAR
+	mov AH, 2H
+	mov DH, 11
+	mov DL, 30
+	int 10h
+	mov si, offset ScoreMessage
+	CALL PRINT
+	CALL DELAY
+	CALL DELAY
+	CALL DELAY
+	CALL DELAY
+	CALL DELAY
+	CALL DELAY
+	CALL CLEAR
+	dec bx
+	cmp bx, 0
+	je DONELOOP
+	jmp ENDLOOP
+	DONELOOP:
+	pop dx
+	pop cx
+	pop bx
+	pop ax
+ret
+
 ENDGAME:
 	push ax
 	push bx
 	push cx
 	push dx 
 	
-
-
+	CALL CLEAR
+	mov loopControl, 100
+	SCORELOOP:
+	
+	MOV AH, 00h
+	INT 1Ah
+	MOV AX,DX
+	XOR DX,DX
+	MOV CX, 23
+	DIV CX
+	mov BH, DL
+	
+	CALL DELAY
+	
+	MOV AH, 00h
+	INT 1Ah
+	MOV AX,DX
+	XOR DX,DX
+	MOV CX, 79
+	DIV CX
+	mov BL, DL
+	
+	mov AH, 2H
+	mov DH, BH
+	mov DL, BL
+	int 10h
+	mov si, di
+	CALL PRINT
+	CALL DELAY
+	CALL DELAY
+	CALL DELAY
+	dec loopControl
+	cmp loopControl, 0
+	je DONELOOP2
+	jmp SCORELOOP
+	DONELOOP2:
+	CALL CLEAR
+	CALL DELAY
+	CALL DELAY
+	CALL DELAY
+	CALL DELAY
+	CALL DELAY
+	CALL DELAY
 	pop dx
 	pop cx
 	pop bx
 	pop ax
+
 ret
 
 
@@ -615,7 +773,7 @@ delay:
 	je Delay3
 	jmp Delay2
 	Delay3:
-	DEC     BX          
+	DEC   BX          
 	CMP BX, 0			
 	je Delay4
 	jmp Delay1
