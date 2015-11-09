@@ -3,10 +3,37 @@
 ;Igor Artemowicz
 ;    Zheng\
 ;SCREEN SIZE: 24 X 80
+;
+;	PINS
+;PLAYER 1:	PIN		Port/Bit
+;UP:		16		C/1
+;DOWN:		15		C/2
+;LED0				
+;LED1
+;LED2
+;LED3
+;LED4
+;LED5
+;LED6
+;LED7
+;
+;PLAYER 2:
+;UP			17		C/3
+;DOWN		9		C/7
+;LED0
+;LED1
+;LED2
+;LED3
+;LED4
+;LED5
+;LED6
+;LED7
+
 Assume cs:code, ds:data, ss:stack
 
 data segment 
 paddle db "|$"
+ball db "@$"
 line1 db "PONG$"
 line2 db "PRESS 'E' TO EXIT$"
 line3 db "PRESS 'P' TO BEGIN$"
@@ -55,6 +82,7 @@ Start:
 CALL DISPLAYMENU
 CALL MAINMENU
 CALL READY
+CALL RESET
 CALL GAME
 jmp Start
 
@@ -175,7 +203,6 @@ GAME:
 	CALL CollisionCheck
 	CALL ScoreCheck
 	
-	inc p1Score
 	cmp p1Score, 8
 	je p1Win
 	cmp p2Score, 8
@@ -203,7 +230,16 @@ READY:
 	push cx
 	push dx 
 
-
+	MOV DX, 143H 
+	MOV AL, 2
+	OUT DX, AL
+	MOV DX, 142H 
+	MOV AL, 00H
+	OUT DX, AL
+	MOV DX, 143H 
+	MOV AL, 3
+	OUT DX, AL
+	
 	P1Prompt:
 	mov AH, 2H
 	mov DH, 12
@@ -245,21 +281,31 @@ moveP1:
 	push bx
 	push cx
 	push dx 
-	
-	MOV DX, 143H 
-	MOV AL, 2
-	OUT DX, AL
-	MOV DX, 140H 
-	MOV AL, 00H
-	OUT DX, AL
-	MOV DX, 143H 
-	MOV AL, 3
-	OUT DX, AL
 
+	MOV DX, 142H 
+	MOV AL, 00H
+	IN AL, DX
+	AND AL, 06H
 	
+	cmp AL, 02H
+	je P1UP
+	cmp AL, 04H
+	je P1DOWN
+	jmp SKIPP1
+	
+	P1DOWN:
+	cmp P1Row, 1
+	je SKIPP1
+	dec P1Row
+	jmp SKIPP1
+	P1UP:
+	cmp P1Row, 22
+	je SKIPP1
+	inc P1Row
+	SKIPP1:
+	mov di, offset p1Row
 	mov si, offset paddle
 	mov AH, 2H
-	mov di, offset p1Row
 	mov DH, [di]
 	mov DL, 2
 	int 10h
@@ -288,9 +334,28 @@ moveP2:
 	push cx
 	push dx 
 	
+	MOV DX, 142H 
+	MOV AL, 00H
+	IN AL, DX
+	AND AL, 88H
 	
+	cmp AL, 08H
+	je P2UP
+	cmp AL, 80H
+	je P2DOWN
+	jmp SKIPP2
 	
+	P2DOWN:
+	cmp P2Row, 1
+	je SKIPP2
+	dec P2Row
+	jmp SKIPP2
+	P2UP:
+	cmp P2Row, 22
+	je SKIPP2
+	inc P2Row
 	
+	SKIPP2:
 	mov si, offset paddle
 	mov AH, 2H
 	mov di, offset p2Row
@@ -318,13 +383,58 @@ moveP2:
 	
 ret
 
-moveBall:
+RESET:
 	push ax
 	push bx
 	push cx
 	push dx 
 	
+mov p1Score, 0
+mov p2Score,0
+mov p1Row, 12
+mov p2Row, 12
+mov ballY, 40
+mov ballX, 12
+CALL BALLSET
+	
 
+	pop dx
+	pop cx
+	pop bx
+	pop ax
+ret
+
+moveBall:
+	push ax
+	push bx
+	push cx
+	push dx 
+
+	cmp ballXVel, 1
+	je incX
+	dec ballX
+	jmp doY
+	incX:
+	inc ballX
+	doY:
+	cmp ballYVel, 1
+	je incY
+	dec ballY
+	jmp drawBall
+	incY:
+	inc ballY
+	
+	drawBall:
+	mov si, offset ball
+	mov AH, 2H
+	mov di, offset ballX
+	mov DH, [di]
+	mov di, offset ballY
+	mov DL, [di]
+	int 10h
+	CALL PRINT
+	
+	
 
 	pop dx
 	pop cx
@@ -338,8 +448,62 @@ collisionCheck:
 	push cx
 	push dx 
 	
+	mov dl, -1
+	mov si, offset ballX
+	mov bl, [si]
 
+	
+	cmp ballY, 3
+	je p1Collide
+	cmp ballY, 76
+	je p2Collide
+	jmp wallCollide
+	
+	P1Collide:
+	mov di, offset p1Row
+	mov bh, [di]
+	cmp bh, bl
+	je posY
+	ADD bh, 1
+	cmp bh, bl
+	je posY
+	SUB bh, 2
+	cmp bh, bl
+	je posY
+	
+	jmp wallCollide
 
+	p2Collide:
+	mov di, offset p2Row
+	mov bh, [di]
+	cmp bh, bl
+	je negY
+	ADD bh, 1
+	cmp bh, bl
+	je negY
+	SUB bh, 2
+	cmp bh, bl
+	je negY
+	
+	posY:
+	mov ballYVel, 1
+	jmp wallCollide
+	negY:
+	mov ballYVel, -1
+	wallCollide:
+	cmp ballX, 23
+	je negX
+	cmp ballX, 0
+	je posX
+	jmp endCollision
+	
+	negX:
+	mov ballXvel, -1
+	jmp endCollision
+	posX:
+	mov ballXVel, 1
+	
+	endCollision:
 	pop dx
 	pop cx
 	pop bx
@@ -352,8 +516,68 @@ scoreCheck:
 	push cx
 	push dx 
 	
+	cmp ballY, 0
+	je P2Scored
+	cmp ballY, 80
+	je P1Scored
+	jmp NoScored
+	
+	P2Scored:
+	CALL BALLSET
+	inc P2Score
+	jmp NoScored
+	P1Scored:
+	CALL BALLSET
+	inc P1Score
+	
+	NoScored:
+	pop dx
+	pop cx
+	pop bx
+	pop ax
+ret
 
-
+BALLSET:
+	push ax
+	push bx
+	push cx
+	push dx 
+	
+	mov si, offset ballXVel
+	mov di, offset ballYvel
+	
+	
+	MOV AH, 00h
+	INT 1Ah
+	MOV AX,DX
+	XOR DX,DX
+	MOV CX, 3
+	DIV CX
+	mov [si], DX
+	dec ballXVel
+	
+	CALL DELAY
+	
+	MOV AH, 00h
+	INT 1Ah
+	MOV AX,DX
+	XOR DX,DX
+	MOV CX, 3
+	DIV CX
+	mov [di], DX
+	dec ballYVel
+	
+	mov di, offset ballX
+	MOV AH, 00h
+	INT 1Ah
+	MOV AX,DX
+	XOR DX,DX
+	MOV CX, 22
+	DIV CX
+	mov [di], DX
+	inc ballX
+	mov ballY, 40
+	
 	pop dx
 	pop cx
 	pop bx
@@ -380,19 +604,19 @@ delay:
 	push bx
 	push cx
 	push dx    
-		mov BX, 400       
+		mov BX, 5     
 	Delay1:
 		mov CX, 2000   
 	Delay2:
 
-	DEC     CX         
+	DEC CX         
 	NOP                     
-	cmp CX, 0				;if CX != 0 return to delay2
+	cmp CX, 0				
 	je Delay3
 	jmp Delay2
 	Delay3:
 	DEC     BX          
-	CMP BX, 0				;if BX != 0 return to delay1
+	CMP BX, 0			
 	je Delay4
 	jmp Delay1
 	Delay4:
